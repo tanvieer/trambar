@@ -15,9 +15,9 @@ Live tram, bus and train departures for Chemnitz and the whole VMS area.
 
 <br>
 
-<a href="https://youtu.be/9cNxedOo6dk"><img src="docs/banner.jpg" width="880" alt="TramBar showing live departures from the menu bar. Click to watch the trailer."></a>
+<a href="https://youtu.be/An4sSG2jipA"><img src="docs/banner.jpg" width="880" alt="TramBar showing live departures from the menu bar. Click to watch the trailer."></a>
 
-**[▶ Watch the 35-second trailer on YouTube](https://youtu.be/9cNxedOo6dk)**
+**[▶ Watch the 35-second trailer on YouTube](https://youtu.be/An4sSG2jipA)**
 
 </div>
 
