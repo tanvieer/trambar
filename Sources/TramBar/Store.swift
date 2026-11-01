@@ -24,11 +24,16 @@ final class Store: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var lastUpdate: Date?
     @Published private(set) var error: String?
     @Published private(set) var locationStatus: CLAuthorizationStatus = .notDetermined
+    /// The menu bar text, e.g. "2 · 4 min". Kept here and set only when it changes:
+    /// a TimelineView in a MenuBarExtra label locks up launch on macOS 27.
+    @Published private(set) var menuTitle: String?
+    @Published private(set) var menuSymbol = Fmt.symbol(.tram)
 
     static let refreshInterval: TimeInterval = 30
     private let location = CLLocationManager()
     private var lastFix: CLLocation?
     private var timer: Timer?
+    private var clock: Timer?
 
     private static let fileURL: URL = {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -47,7 +52,18 @@ final class Store: NSObject, ObservableObject, CLLocationManagerDelegate {
         timer = Timer.scheduledTimer(withTimeInterval: Store.refreshInterval, repeats: true) { [weak self] _ in
             Task { await self?.refresh() }
         }
+        clock = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.updateMenu() }
+        }
         Task { await refresh() }
+    }
+
+    private func updateMenu() {
+        let d = headline
+        let title = d.map { "\($0.line) · \(Fmt.countdown($0.when, now: Date()))" }
+        let symbol = Fmt.symbol(d?.kind ?? .tram)
+        if title != menuTitle { menuTitle = title }
+        if symbol != menuSymbol { menuSymbol = symbol }
     }
 
     private func save() {
@@ -80,6 +96,7 @@ final class Store: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         error = failed ? "Some data could not be loaded — showing the last known times." : nil
         if !failed { lastUpdate = Date() }
+        updateMenu()
         if settings.showNearby { location.requestLocation() }
     }
 

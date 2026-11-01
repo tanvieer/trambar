@@ -44,14 +44,8 @@ struct DelayBadge: View {
 struct MenuBarLabel: View {
     @ObservedObject var store: Store
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 15)) { context in
-            if let d = store.headline {
-                Image(systemName: Fmt.symbol(d.kind))
-                Text("\(d.line) · \(Fmt.countdown(d.when, now: context.date))")
-            } else {
-                Image(systemName: "tram.fill")
-            }
-        }
+        Image(systemName: store.menuSymbol)
+        if let title = store.menuTitle { Text(title) }
     }
 }
 
