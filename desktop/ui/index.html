@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TramBar</title>
+<style>
+:root { --bg:#f6f6f7; --card:#fff; --fg:#1d1d1f; --muted:#6e6e73; --line:#d9d9de; --red:#d70015; --green:#248a3d; --warn:#b25000; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#1e1e20; --card:#2a2a2d; --fg:#f2f2f4; --muted:#a1a1a6; --line:#3a3a3e; --red:#ff6961; --green:#30d158; --warn:#ffb340; }
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:13px/1.35 system-ui, "Segoe UI", Ubuntu, sans-serif; overflow:hidden; border-radius:10px; }
+header { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line); -webkit-user-select:none; user-select:none; }
+header h1 { font-size:14px; margin:0; flex:1; }
+button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:2px 6px; border-radius:6px; }
+button:hover:not(:disabled) { background:var(--line); }
+button:disabled { opacity:.35; cursor:default; }
+main { height:calc(100% - 41px); overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:12px; }
+.card { background:var(--card); border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:5px; }
+.card h3 { margin:0 0 2px; font-size:13px; }
+.row { display:flex; align-items:center; gap:8px; white-space:nowrap; }
+.row.cancelled { text-decoration:line-through; }
+.kind { width:18px; text-align:center; }
+.line { min-width:28px; }
+.dest { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.spacer { flex:1; }
+.time { min-width:48px; text-align:right; font-variant-numeric:tabular-nums; }
+.late { color:var(--red); font-weight:600; }
+.live { color:var(--green); font-size:9px; }
+.muted { color:var(--muted); }
+.small { font-size:11px; }
+.warn { color:var(--warn); }
+.label { font-size:11px; font-weight:600; color:var(--muted); }
+hr { border:0; border-top:1px solid var(--line); width:100%; margin:0; }
+input:not([type]) { width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); font:inherit; }
+.results { display:flex; flex-direction:column; }
+.result { text-align:left; padding:4px 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Departures</h1>
+  <span id="updated" class="small muted"></span>
+  <button id="reload" title="Refresh now">⟳</button>
+  <button id="edit">Edit</button>
+  <button id="quit" title="Quit TramBar">⏻</button>
+</header>
+<main id="body"></main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

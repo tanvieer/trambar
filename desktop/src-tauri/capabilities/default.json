@@ -1,0 +1,31 @@
+{
+  "identifier": "default",
+  "windows": [
+    "panel"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "positioner:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://efa.vvo-online.de/*"
+        },
+        {
+          "url": "https://efa.vrr.de/*"
+        },
+        {
+          "url": "https://bahnland-bayern.de/*"
+        },
+        {
+          "url": "https://www.efa-bw.de/*"
+        }
+      ]
+    }
+  ]
+}

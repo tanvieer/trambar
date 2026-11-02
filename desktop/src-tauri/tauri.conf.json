@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TramBar",
+  "version": "0.1.3",
+  "identifier": "io.github.trambar",
+  "build": { "frontendDist": "../ui" },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "panel",
+        "title": "TramBar",
+        "width": 380,
+        "height": 560,
+        "visible": false,
+        "decorations": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi", "deb", "appimage", "rpm"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.png", "icons/icon.ico"],
+    "category": "Travel",
+    "shortDescription": "Next tram in your system tray",
+    "linux": { "deb": { "depends": ["libayatana-appindicator3-1"] } }
+  }
+}

@@ -1,9 +1,21 @@
 import Foundation
 
-/// Client for the VMS (Verkehrsverbund Mittelsachsen) EFA server, which VVO hosts.
-/// Free, no key. Covers CVAG trams and buses plus DB regional trains, with realtime.
+/// Client for the public EFA servers. Free, no key. The VMS (Verkehrsverbund
+/// Mittelsachsen) server, which VVO hosts, finds stops anywhere in Germany but only
+/// has realtime for Saxony. Stop ids carry the state ("de:09:..." is Bavaria), so
+/// departures and trips go to that state's own server when it has live data.
 enum EFA {
     static let base = URL(string: "https://efa.vvo-online.de/VMSSL3/")!
+    static let regional: [String: URL] = [
+        "05": URL(string: "https://efa.vrr.de/standard/")!,     // North Rhine-Westphalia (VRR)
+        "08": URL(string: "https://www.efa-bw.de/nvbw/")!,      // Baden-Württemberg (NVBW)
+        "09": URL(string: "https://bahnland-bayern.de/efa/")!,  // Bavaria (BEG)
+    ]
+
+    static func server(for stopID: String) -> URL {
+        let parts = stopID.split(separator: ":")
+        return parts.count > 1 ? regional[String(parts[1])] ?? base : base
+    }
 
     struct Stop: Codable, Hashable, Identifiable {
         var id: String          // global id, e.g. de:14511:30058
@@ -69,7 +81,7 @@ enum EFA {
     static func departures(stopID: String, limit: Int = 8) async throws -> [Departure] {
         let json = try await get("XML_DM_REQUEST", [
             "type_dm": "stop", "name_dm": stopID, "mode": "direct", "useRealtime": "1", "limit": String(limit),
-        ])
+        ], server: server(for: stopID))
         return (json["stopEvents"] as? [[String: Any]] ?? []).compactMap { event in
             guard let t = event["transportation"] as? [String: Any],
                   let planned = date(event["departureTimePlanned"]) else { return nil }
@@ -94,7 +106,7 @@ enum EFA {
             "type_origin": "stop", "name_origin": from,
             "type_destination": "stop", "name_destination": to,
             "useRealtime": "1", "calcNumberOfTrips": String(count),
-        ])
+        ], server: server(for: from))
         return (json["journeys"] as? [[String: Any]] ?? []).compactMap { journey in
             guard let legs = journey["legs"] as? [[String: Any]],
                   let origin = legs.first?["origin"] as? [String: Any],
@@ -122,8 +134,8 @@ enum EFA {
 
     // MARK: plumbing
 
-    private static func get(_ endpoint: String, _ params: [String: String]) async throws -> [String: Any] {
-        var components = URLComponents(url: base.appendingPathComponent(endpoint), resolvingAgainstBaseURL: false)!
+    private static func get(_ endpoint: String, _ params: [String: String], server: URL = base) async throws -> [String: Any] {
+        var components = URLComponents(url: server.appendingPathComponent(endpoint), resolvingAgainstBaseURL: false)!
         components.queryItems = ([("outputFormat", "rapidJSON"), ("language", "de")] + params.map { ($0.key, $0.value) })
             .map { URLQueryItem(name: $0.0, value: $0.1) }
         var request = URLRequest(url: components.url!, timeoutInterval: 15)
