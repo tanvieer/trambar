@@ -10,6 +10,7 @@ use tauri::{
     AppHandle, Manager, WindowEvent,
 };
 use tauri_plugin_positioner::{Position, WindowExt};
+use tauri_plugin_updater::UpdaterExt;
 
 const TRAY: &str = "main";
 
@@ -62,15 +63,32 @@ fn toggle_panel(app: &AppHandle) {
     }
 }
 
+// Checks GitHub for a newer signed release, installs it and restarts. deb and rpm
+// installs are left to apt/dnf; on Linux only the AppImage can replace itself.
+async fn update(app: &AppHandle) -> tauri_plugin_updater::Result<()> {
+    if cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none() {
+        return Ok(());
+    }
+    if let Some(u) = app.updater()?.check().await? {
+        u.download_and_install(|_, _| {}, || {}).await?;
+        app.restart();
+    }
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .invoke_handler(tauri::generate_handler![load_settings, save_settings, set_tray, quit])
         .setup(|app| {
-            let open = MenuItem::with_id(app, "open", "Show departures", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit TramBar", true, None::<&str>)?;
+            // German when the system's language is German, English otherwise.
+            let de = sys_locale::get_locale().is_some_and(|l| l.starts_with("de"));
+            let (show, exit) = if de { ("Abfahrten zeigen", "TramBar beenden") } else { ("Show departures", "Quit TramBar") };
+            let open = MenuItem::with_id(app, "open", show, true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", exit, true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;
             TrayIconBuilder::with_id(TRAY)
                 .icon(tauri::include_image!("icons/tray.png"))
@@ -89,6 +107,11 @@ fn main() {
                     }
                 })
                 .build(app)?;
+            let handle = app.handle().clone();
+            std::thread::spawn(move || loop {
+                let _ = tauri::async_runtime::block_on(update(&handle));
+                std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
+            });
             Ok(())
         })
         .on_window_event(|win, e| {

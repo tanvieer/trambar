@@ -26,6 +26,8 @@ struct Settings: Codable {
     var showNearby = true
     /// Item ids in the order the panel shows them. Items not listed go last.
     var order: [String] = []
+    /// The item the menu bar shows, if pinned. Otherwise it shows the top item.
+    var pinned: String?
 
     init() {}
 
@@ -36,6 +38,7 @@ struct Settings: Codable {
         routes = try c.decodeIfPresent([Route].self, forKey: .routes) ?? []
         showNearby = try c.decodeIfPresent(Bool.self, forKey: .showNearby) ?? true
         order = try c.decodeIfPresent([String].self, forKey: .order) ?? []
+        pinned = try c.decodeIfPresent(String.self, forKey: .pinned)
     }
 
     /// Saved stops and routes in panel order. Without an order, routes come first as before.
@@ -95,7 +98,7 @@ final class Store: NSObject, ObservableObject, CLLocationManagerDelegate {
     private func updateMenu() {
         let d = headline
         let title = d.map { "\($0.line) · \(Fmt.countdown($0.when, now: Date()))" }
-        let symbol = Fmt.symbol(d?.kind ?? .tram)
+        let symbol = d?.symbol ?? Fmt.symbol(.tram)
         if title != menuTitle { menuTitle = title }
         if symbol != menuSymbol { menuSymbol = symbol }
     }
@@ -128,23 +131,32 @@ final class Store: NSObject, ObservableObject, CLLocationManagerDelegate {
                 if let result { journeys[id] = result } else { failed = true }
             }
         }
-        error = failed ? "Some data could not be loaded — showing the last known times." : nil
+        error = failed ? L("Some data could not be loaded — showing the last known times.", "Einige Daten konnten nicht geladen werden – es werden die letzten bekannten Zeiten angezeigt.") : nil
         if !failed { lastUpdate = Date() }
         updateMenu()
         if settings.showNearby { location.requestLocation() }
     }
 
-    /// The saved stop highest in the panel order. The menu bar follows it.
-    var firstStop: EFA.Stop? {
-        for item in settings.items { if case .stop(let s) = item { return s } }
-        return nil
+    /// The saved item the menu bar follows: the pinned one, else the top of the list.
+    var menuItem: Item? {
+        let items = settings.items
+        return items.first { $0.id == settings.pinned } ?? items.first
     }
 
-    /// What the menu bar shows: the next departure from the first saved stop,
+    /// What the menu bar shows: the next departure of the menu item,
     /// or from the nearest stop if nothing is saved.
-    var headline: EFA.Departure? {
-        let id = firstStop?.id ?? (settings.showNearby ? nearby.first?.id : nil)
-        return id.flatMap { departures[$0] }?.first { !$0.cancelled && $0.when > Date().addingTimeInterval(-30) }
+    private var headline: (line: String, when: Date, symbol: String)? {
+        let soon = Date().addingTimeInterval(-30)
+        let stopID: String?
+        switch menuItem {
+        case .route(let route):
+            return journeys[route.id]?.first { !$0.cancelled && $0.departs > soon }
+                .map { ($0.lines.first ?? "", $0.departs, "point.topleft.down.to.point.bottomright.curvepath") }
+        case .stop(let stop): stopID = stop.id
+        case nil: stopID = settings.showNearby ? nearby.first?.id : nil
+        }
+        return stopID.flatMap { departures[$0] }?.first { !$0.cancelled && $0.when > soon }
+            .map { ($0.line, $0.when, Fmt.symbol($0.kind)) }
     }
 
     // MARK: editing
@@ -164,6 +176,10 @@ final class Store: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func removeRoute(_ route: Route) { settings.routes.removeAll { $0 == route } }
+
+    func togglePin(_ item: Item) {
+        settings.pinned = settings.pinned == item.id ? nil : item.id
+    }
 
     /// Moves a card one place up (-1) or down (+1) in the panel.
     func move(_ item: Item, by offset: Int) {

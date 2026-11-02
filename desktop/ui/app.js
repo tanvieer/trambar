@@ -20,16 +20,21 @@ const routeId = (r) => r.from.id + ">" + r.to.id;
 
 // CVAG platform codes like "TO" (tram, east side) become "east side".
 // Track numbers and anything else are shown as they come.
-const SIDES = { N: "north", O: "east", S: "south", W: "west" };
+// German when the system's language is German, English otherwise.
+const DE = /^de\b/i.test(navigator.language);
+const L = (en, de) => (DE ? de : en);
+const SIDES = DE
+  ? { N: "Nordseite", O: "Ostseite", S: "Südseite", W: "Westseite" }
+  : { N: "north side", O: "east side", S: "south side", W: "west side" };
 function platform(code) {
-  const m = /^[TB]?([NOSW])$/.exec(code);
-  return m ? `${SIDES[m[1]]} side` : code;
+  const m = /^[A-Z]?([NOSW])$/.exec(code);
+  return m ? SIDES[m[1]] : code;
 }
 
 // "now", "4 min", or a clock time once it is more than an hour away.
 function countdown(d, now) {
   const m = Math.floor((d - now) / 60000);
-  if (m < 1) return "now";
+  if (m < 1) return L("now", "jetzt");
   if (m < 60) return `${m} min`;
   return clock(d);
 }
@@ -74,7 +79,7 @@ async function refresh() {
     ...[...ids].map((id) => EFA.departures(id).then((r) => (deps[id] = r), () => (failed = true))),
     ...settings.routes.map((r) => EFA.journeys(r.from.id, r.to.id).then((j) => (trips[routeId(r)] = j), () => (failed = true))),
   ]);
-  error = failed ? "Some data could not be loaded — showing the last known times." : null;
+  error = failed ? L("Some data could not be loaded — showing the last known times.", "Einige Daten konnten nicht geladen werden – es werden die letzten bekannten Zeiten angezeigt.") : null;
   if (!failed) lastUpdate = new Date();
   updateTray();
   if (!editing) render();
@@ -83,7 +88,7 @@ async function refresh() {
 // Desktop location goes through the webview: Windows Location service, GeoClue on Linux.
 function locate() {
   if (!settings.showNearby) return;
-  if (!navigator.geolocation) { locationMsg = "Location is not available on this system."; return; }
+  if (!navigator.geolocation) { locationMsg = L("Location is not available on this system.", "Standort ist auf diesem System nicht verfügbar."); return; }
   navigator.geolocation.getCurrentPosition(async (p) => {
     locationMsg = null;
     const { latitude: lat, longitude: lon } = p.coords;
@@ -92,7 +97,7 @@ function locate() {
     lastFix = [lat, lon];
     try { nearby = await EFA.nearbyStops(lat, lon); refresh(); } catch {}
   }, () => {
-    locationMsg = "Location is off for TramBar. Turn on location services in your system settings.";
+    locationMsg = L("Location is off for TramBar. Turn on location services in your system settings.", "Standort ist für TramBar aus. Schalte die Ortungsdienste in den Systemeinstellungen ein.");
     if (!editing) render();
   }, { timeout: 20000, maximumAge: 120000 });
 }
@@ -111,17 +116,17 @@ function delayBadge(min, realtime) {
 
 function stopCard(title, subtitle, list, now, max = 5) {
   let rows;
-  if (!list) rows = `<div class="muted">Loading…</div>`;
+  if (!list) rows = `<div class="muted">${L("Loading…", "Lädt…")}</div>`;
   else {
     const up = list.filter((d) => d.when > now - 30000).slice(0, max);
     rows = up.length ? up.map((d) => `
-      <div class="row${d.cancelled ? " cancelled" : ""}" title="${esc(d.line)} → ${esc(d.destination)}, planned ${clock(d.planned)}">
+      <div class="row${d.cancelled ? " cancelled" : ""}" title="${esc(d.line)} → ${esc(d.destination)}, ${L("planned", "planmäßig")} ${clock(d.planned)}">
         <span class="kind">${ICON[d.kind]}</span><b class="line">${esc(d.line)}</b>
         <span class="dest">${esc(d.destination)}</span>
-        ${d.platform ? `<span class="small muted" title="Platform ${esc(d.platform)}">${esc(platform(d.platform))}</span>` : ""}
+        ${d.platform ? `<span class="small muted" title="${L("Platform", "Steig")} ${esc(d.platform)}">${esc(platform(d.platform))}</span>` : ""}
         <span class="spacer"></span>
-        ${d.cancelled ? `<span class="late small">cancelled</span>` : `${delayBadge(d.delay, !!d.estimated)}<b class="time">${countdown(d.when, now)}</b>`}
-      </div>`).join("") : `<div class="muted small">No departures soon</div>`;
+        ${d.cancelled ? `<span class="late small">${L("cancelled", "fällt aus")}</span>` : `${delayBadge(d.delay, !!d.estimated)}<b class="time">${countdown(d.when, now)}</b>`}
+      </div>`).join("") : `<div class="muted small">${L("No departures soon", "Keine Abfahrten in Kürze")}</div>`;
   }
   return `<section class="card"><h3>${esc(title)}${subtitle ? ` <span class="small muted">${esc(subtitle)}</span>` : ""}</h3>${rows}</section>`;
 }
@@ -133,9 +138,9 @@ function routeCard(r, now) {
       <b class="dest">${esc(j.lines.join(" › "))}</b>
       ${j.platform ? `<span class="small muted">${platform(j.platform) === j.platform ? "Gl. " + esc(j.platform) : esc(platform(j.platform))}</span>` : ""}
       <span class="spacer"></span>
-      ${j.cancelled ? `<span class="late small">cancelled</span>` :
+      ${j.cancelled ? `<span class="late small">${L("cancelled", "fällt aus")}</span>` :
         `<span class="muted">${clock(j.departs)} → ${clock(j.arrives)}</span>${delayBadge(j.delay, j.realtime)}<b class="time">${countdown(j.departs, now)}</b>`}
-    </div>`).join("") : `<div class="muted small">Loading…</div>`;
+    </div>`).join("") : `<div class="muted small">${L("Loading…", "Lädt…")}</div>`;
   return `<section class="card"><h3>${esc(r.from.name)} → ${esc(r.to.name)}</h3>${rows}</section>`;
 }
 
@@ -146,38 +151,38 @@ function renderDepartures() {
   if (settings.showNearby) {
     const saved = new Set(settings.stops.map((s) => s.id));
     const near = nearby.filter((s) => !saved.has(s.id)).slice(0, 3);
-    h += `<div class="label">NEAR YOU</div>`;
+    h += `<div class="label">${L("NEAR YOU", "IN DER NÄHE")}</div>`;
     if (locationMsg) h += `<div class="muted small">${esc(locationMsg)}</div>`;
-    else if (!near.length) h += `<div class="muted small">Finding stops near you…</div>`;
+    else if (!near.length) h += `<div class="muted small">${L("Finding stops near you…", "Suche Haltestellen in der Nähe…")}</div>`;
     for (const s of near) h += stopCard(s.name, s.distance != null ? `${s.distance} m` : null, deps[s.id], now, 4);
   }
   if (!settings.stops.length && !settings.routes.length && !settings.showNearby)
-    h += `<div class="muted">Nothing saved yet. Press Edit to add a stop or a route.</div>`;
+    h += `<div class="muted">${L("Nothing saved yet. Press Edit to add a stop or a route.", "Noch nichts gespeichert. Mit „Bearbeiten“ fügst du eine Haltestelle oder Strecke hinzu.")}</div>`;
   $("#body").innerHTML = h;
 }
 
 function renderEdit() {
   const list = items(), first = firstStop()?.id;
   $("#body").innerHTML = `
-    <div class="label">SAVED · TOP TO BOTTOM</div>
-    ${list.length ? "" : `<div class="muted small">Nothing saved yet.</div>`}
+    <div class="label">${L("SAVED · TOP TO BOTTOM", "GESPEICHERT · VON OBEN NACH UNTEN")}</div>
+    ${list.length ? "" : `<div class="muted small">${L("Nothing saved yet.", "Noch nichts gespeichert.")}</div>`}
     ${list.map((it, i) => `
       <div class="row edit">
-        <span class="dest">${it.stop ? esc(EFA.fullName(it.stop)) + (it.stop.id === first ? ` <span class="small muted" title="Shown in the tray: the highest stop in this list">· tray</span>` : "")
+        <span class="dest">${it.stop ? esc(EFA.fullName(it.stop)) + (it.stop.id === first ? ` <span class="small muted" title="${L("Shown in the tray: the highest stop in this list", "Im Tray: die oberste Haltestelle dieser Liste")}">· tray</span>` : "")
           : `${esc(it.route.from.name)} → ${esc(it.route.to.name)}`}</span>
         <span class="spacer"></span>
-        <button data-move="${i}:-1" ${i === 0 ? "disabled" : ""} title="Move up">▲</button>
-        <button data-move="${i}:1" ${i === list.length - 1 ? "disabled" : ""} title="Move down">▼</button>
-        <button data-remove="${i}" title="Remove">−</button>
+        <button data-move="${i}:-1" ${i === 0 ? "disabled" : ""} title="${L("Move up", "Nach oben")}">▲</button>
+        <button data-move="${i}:1" ${i === list.length - 1 ? "disabled" : ""} title="${L("Move down", "Nach unten")}">▼</button>
+        <button data-remove="${i}" title="${L("Remove", "Entfernen")}">−</button>
       </div>`).join("")}
     <hr>
-    <div class="search" data-kind="stop"><input placeholder="Add a stop…"><div class="results"></div></div>
-    ${routeFrom ? `<div class="row small"><span>From ${esc(routeFrom.name)}</span><span class="spacer"></span><button id="cancelRoute">Cancel</button></div>
-      <div class="search" data-kind="to"><input placeholder="To…"><div class="results"></div></div>`
-      : `<div class="search" data-kind="from"><input placeholder="Add a route: from…"><div class="results"></div></div>`}
+    <div class="search" data-kind="stop"><input placeholder="${L("Add a stop…", "Haltestelle hinzufügen…")}"><div class="results"></div></div>
+    ${routeFrom ? `<div class="row small"><span>${L("From", "Von")} ${esc(routeFrom.name)}</span><span class="spacer"></span><button id="cancelRoute">${L("Cancel", "Abbrechen")}</button></div>
+      <div class="search" data-kind="to"><input placeholder="${L("To…", "Nach…")}"><div class="results"></div></div>`
+      : `<div class="search" data-kind="from"><input placeholder="${L("Add a route: from…", "Strecke hinzufügen: von…")}"><div class="results"></div></div>`}
     <hr>
-    <label class="row"><input type="checkbox" id="nearby" ${settings.showNearby ? "checked" : ""}> Show stops near my location</label>
-    <label class="row"><input type="checkbox" id="autostart"> Open at login</label>`;
+    <label class="row"><input type="checkbox" id="nearby" ${settings.showNearby ? "checked" : ""}> ${L("Show stops near my location", "Haltestellen in meiner Nähe zeigen")}</label>
+    <label class="row"><input type="checkbox" id="autostart"> ${L("Open at login", "Beim Anmelden öffnen")}</label>`;
 
   $("#body").querySelectorAll("[data-move]").forEach((b) => (b.onclick = () => {
     const [i, off] = b.dataset.move.split(":").map(Number);
@@ -238,9 +243,9 @@ function pick(kind, s) {
 }
 
 function render() {
-  $("#title").textContent = editing ? "Edit stops & routes" : "Departures";
-  $("#edit").textContent = editing ? "Done" : "Edit";
-  $("#updated").textContent = !editing && lastUpdate ? `updated ${clock(lastUpdate)}` : "";
+  $("#title").textContent = editing ? L("Edit stops & routes", "Haltestellen & Strecken bearbeiten") : L("Departures", "Abfahrten");
+  $("#edit").textContent = editing ? L("Done", "Fertig") : L("Edit", "Bearbeiten");
+  $("#updated").textContent = !editing && lastUpdate ? `${L("updated", "aktualisiert")} ${clock(lastUpdate)}` : "";
   $("#reload").hidden = editing;
   editing ? renderEdit() : renderDepartures();
 }
@@ -250,6 +255,8 @@ function render() {
 $("#edit").onclick = () => { editing = !editing; routeFrom = null; render(); };
 $("#reload").onclick = () => refresh();
 $("#quit").onclick = () => invoke("quit");
+$("#reload").title = L("Refresh now", "Jetzt aktualisieren");
+$("#quit").title = L("Quit TramBar", "TramBar beenden");
 document.addEventListener("keydown", (e) => e.key === "Escape" && win.hide());
 window.onPanelShown = () => { if (!editing) render(); };
 

@@ -124,6 +124,9 @@ Windows 10 and 11 are supported. The installer adds Microsoft's WebView2 runtime
 if it is missing. Prefer an MSI for managed PCs? Use `TramBar_x.y.z_x64_en-US.msi`.
 To uninstall, use **Settings → Apps → TramBar**.
 
+TramBar updates itself: it checks for a new release at start and every six
+hours, installs it and restarts.
+
 ### Linux
 
 Download the package for your distribution from the
@@ -164,6 +167,10 @@ themselves. For the AppImage on a minimal system you may need to install it:
 *Near you* uses GeoClue for location. If the section keeps saying *Finding stops
 near you*, check that location services are on in your desktop's privacy
 settings, or turn the section off under **Edit**.
+
+**Updates.** The AppImage updates itself, like the Windows app. With the `.deb`
+or `.rpm`, download the new package and install it the same way as above; it
+replaces the old version.
 
 <details>
 <summary><b>Build it yourself (Windows or Linux)</b></summary>
