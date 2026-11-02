@@ -99,11 +99,13 @@ struct Panel: View {
             if let error = store.error {
                 Label(error, systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(.orange)
             }
-            ForEach(store.settings.routes) { route in
-                RouteCard(route: route, journeys: store.journeys[route.id] ?? [], now: now)
-            }
-            ForEach(store.settings.stops) { stop in
-                StopCard(title: stop.name, subtitle: nil, departures: store.departures[stop.id], now: now)
+            ForEach(store.settings.items) { item in
+                switch item {
+                case .route(let route):
+                    RouteCard(route: route, journeys: store.journeys[route.id] ?? [], now: now)
+                case .stop(let stop):
+                    StopCard(title: stop.name, subtitle: nil, departures: store.departures[stop.id], now: now)
+                }
             }
             if store.settings.showNearby { nearbySection(now: now) }
             if store.settings.stops.isEmpty && store.settings.routes.isEmpty && !store.settings.showNearby {
@@ -225,31 +227,39 @@ struct EditView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("STOPS").font(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
-            ForEach(store.settings.stops) { stop in
+            Text("SAVED · TOP TO BOTTOM").font(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
+            let items = store.settings.items
+            if items.isEmpty {
+                Text("Nothing saved yet.").font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 HStack {
-                    Text(stop.fullName)
-                    Spacer()
-                    if stop.id != store.settings.stops.first?.id {
-                        Button { store.moveStopToTop(stop) } label: { Image(systemName: "arrow.up.to.line") }
-                            .buttonStyle(.borderless).help("Show in the menu bar")
-                    } else {
-                        Image(systemName: "menubar.rectangle").foregroundStyle(.secondary).help("Shown in the menu bar")
+                    switch item {
+                    case .stop(let stop):
+                        Text(stop.fullName)
+                        if stop.id == store.firstStop?.id {
+                            Image(systemName: "menubar.rectangle").foregroundStyle(.secondary)
+                                .help("Shown in the menu bar: the highest stop in this list")
+                        }
+                    case .route(let route):
+                        Text("\(route.from.name) → \(route.to.name)")
                     }
-                    Button { store.removeStop(stop) } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
+                    Spacer()
+                    Button { store.move(item, by: -1) } label: { Image(systemName: "chevron.up") }
+                        .buttonStyle(.borderless).disabled(index == 0).help("Move up")
+                    Button { store.move(item, by: 1) } label: { Image(systemName: "chevron.down") }
+                        .buttonStyle(.borderless).disabled(index == items.count - 1).help("Move down")
+                    Button {
+                        switch item {
+                        case .stop(let stop): store.removeStop(stop)
+                        case .route(let route): store.removeRoute(route)
+                        }
+                    } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
                 }
             }
-            StopSearch(placeholder: "Add a stop…") { store.addStop($0) }
 
             Divider()
-            Text("ROUTES").font(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
-            ForEach(store.settings.routes) { route in
-                HStack {
-                    Text("\(route.from.name) → \(route.to.name)")
-                    Spacer()
-                    Button { store.removeRoute(route) } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
-                }
-            }
+            StopSearch(placeholder: "Add a stop…") { store.addStop($0) }
             if let from = routeFrom {
                 HStack {
                     Text("From \(from.name)").font(.caption)

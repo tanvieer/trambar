@@ -8,10 +8,44 @@ struct Route: Codable, Hashable, Identifiable {
     var id: String { from.id + ">" + to.id }
 }
 
+/// One card in the panel: a saved stop or a saved route.
+enum Item: Identifiable {
+    case stop(EFA.Stop)
+    case route(Route)
+    var id: String {
+        switch self {
+        case .stop(let s): return "stop:" + s.id
+        case .route(let r): return "route:" + r.id
+        }
+    }
+}
+
 struct Settings: Codable {
     var stops: [EFA.Stop] = []
     var routes: [Route] = []
     var showNearby = true
+    /// Item ids in the order the panel shows them. Items not listed go last.
+    var order: [String] = []
+
+    init() {}
+
+    // Older settings files have no `order`, so every field is optional when reading.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        stops = try c.decodeIfPresent([EFA.Stop].self, forKey: .stops) ?? []
+        routes = try c.decodeIfPresent([Route].self, forKey: .routes) ?? []
+        showNearby = try c.decodeIfPresent(Bool.self, forKey: .showNearby) ?? true
+        order = try c.decodeIfPresent([String].self, forKey: .order) ?? []
+    }
+
+    /// Saved stops and routes in panel order. Without an order, routes come first as before.
+    var items: [Item] {
+        let all = routes.map(Item.route) + stops.map(Item.stop)
+        let rank = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        return all.enumerated()
+            .sorted { (rank[$0.element.id] ?? order.count + $0.offset) < (rank[$1.element.id] ?? order.count + $1.offset) }
+            .map(\.element)
+    }
 }
 
 /// Everything the menu shows, refreshed every 30 seconds.
@@ -100,10 +134,16 @@ final class Store: NSObject, ObservableObject, CLLocationManagerDelegate {
         if settings.showNearby { location.requestLocation() }
     }
 
+    /// The saved stop highest in the panel order. The menu bar follows it.
+    var firstStop: EFA.Stop? {
+        for item in settings.items { if case .stop(let s) = item { return s } }
+        return nil
+    }
+
     /// What the menu bar shows: the next departure from the first saved stop,
     /// or from the nearest stop if nothing is saved.
     var headline: EFA.Departure? {
-        let id = settings.stops.first?.id ?? (settings.showNearby ? nearby.first?.id : nil)
+        let id = firstStop?.id ?? (settings.showNearby ? nearby.first?.id : nil)
         return id.flatMap { departures[$0] }?.first { !$0.cancelled && $0.when > Date().addingTimeInterval(-30) }
     }
 
@@ -116,10 +156,6 @@ final class Store: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func removeStop(_ stop: EFA.Stop) { settings.stops.removeAll { $0.id == stop.id } }
-    func moveStopToTop(_ stop: EFA.Stop) {
-        settings.stops.removeAll { $0.id == stop.id }
-        settings.stops.insert(stop, at: 0)
-    }
 
     func addRoute(from: EFA.Stop, to: EFA.Stop) {
         let route = Route(from: from, to: to)
@@ -128,6 +164,14 @@ final class Store: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func removeRoute(_ route: Route) { settings.routes.removeAll { $0 == route } }
+
+    /// Moves a card one place up (-1) or down (+1) in the panel.
+    func move(_ item: Item, by offset: Int) {
+        var ids = settings.items.map(\.id)
+        guard let i = ids.firstIndex(of: item.id), ids.indices.contains(i + offset) else { return }
+        ids.swapAt(i, i + offset)
+        settings.order = ids
+    }
 
     var launchAtLogin: Bool {
         get { SMAppService.mainApp.status == .enabled }
