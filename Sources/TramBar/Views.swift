@@ -16,6 +16,15 @@ enum Fmt {
         return clock.string(from: date)
     }
 
+    /// CVAG platform codes like "TO" (tram, east side) become "east side".
+    /// Track numbers and anything else are shown as they come.
+    static func platform(_ code: String) -> String {
+        let sides: [Character: String] = ["N": "north", "O": "east", "S": "south", "W": "west"]
+        guard code.count <= 2, let last = code.last, let side = sides[last],
+              code.count == 1 || "TB".contains(code.first!) else { return code }
+        return "\(side) side"
+    }
+
     static func symbol(_ kind: EFA.Kind) -> String {
         switch kind {
         case .tram: return "tram.fill"
@@ -168,7 +177,7 @@ struct DepartureRow: View {
             Image(systemName: Fmt.symbol(d.kind)).frame(width: 16).foregroundStyle(.secondary)
             Text(d.line).font(.system(.body, design: .rounded)).fontWeight(.bold).frame(minWidth: 28, alignment: .leading)
             Text(d.destination).lineLimit(1).truncationMode(.tail)
-            if let p = d.platform { Text(p).font(.caption2).foregroundStyle(.secondary) }
+            if let p = d.platform { Text(Fmt.platform(p)).font(.caption2).foregroundStyle(.secondary).help("Platform \(p)") }
             Spacer(minLength: 4)
             if d.cancelled {
                 Text("cancelled").foregroundStyle(.red).font(.caption)
@@ -199,7 +208,7 @@ struct RouteCard: View {
             ForEach(Array(upcoming)) { j in
                 HStack(spacing: 8) {
                     Text(j.lines.joined(separator: " › ")).fontWeight(.bold).lineLimit(1)
-                    if let p = j.platform { Text("Gl. \(p)").font(.caption2).foregroundStyle(.secondary) }
+                    if let p = j.platform { Text(Fmt.platform(p) == p ? "Gl. \(p)" : Fmt.platform(p)).font(.caption2).foregroundStyle(.secondary) }
                     Spacer(minLength: 4)
                     if j.cancelled {
                         Text("cancelled").foregroundStyle(.red).font(.caption)

@@ -18,6 +18,14 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const clock = (d) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 const routeId = (r) => r.from.id + ">" + r.to.id;
 
+// CVAG platform codes like "TO" (tram, east side) become "east side".
+// Track numbers and anything else are shown as they come.
+const SIDES = { N: "north", O: "east", S: "south", W: "west" };
+function platform(code) {
+  const m = /^[TB]?([NOSW])$/.exec(code);
+  return m ? `${SIDES[m[1]]} side` : code;
+}
+
 // "now", "4 min", or a clock time once it is more than an hour away.
 function countdown(d, now) {
   const m = Math.floor((d - now) / 60000);
@@ -110,7 +118,7 @@ function stopCard(title, subtitle, list, now, max = 5) {
       <div class="row${d.cancelled ? " cancelled" : ""}" title="${esc(d.line)} → ${esc(d.destination)}, planned ${clock(d.planned)}">
         <span class="kind">${ICON[d.kind]}</span><b class="line">${esc(d.line)}</b>
         <span class="dest">${esc(d.destination)}</span>
-        ${d.platform ? `<span class="small muted">${esc(d.platform)}</span>` : ""}
+        ${d.platform ? `<span class="small muted" title="Platform ${esc(d.platform)}">${esc(platform(d.platform))}</span>` : ""}
         <span class="spacer"></span>
         ${d.cancelled ? `<span class="late small">cancelled</span>` : `${delayBadge(d.delay, !!d.estimated)}<b class="time">${countdown(d.when, now)}</b>`}
       </div>`).join("") : `<div class="muted small">No departures soon</div>`;
@@ -123,7 +131,7 @@ function routeCard(r, now) {
   const rows = up.length ? up.map((j) => `
     <div class="row${j.cancelled ? " cancelled" : ""}">
       <b class="dest">${esc(j.lines.join(" › "))}</b>
-      ${j.platform ? `<span class="small muted">Gl. ${esc(j.platform)}</span>` : ""}
+      ${j.platform ? `<span class="small muted">${platform(j.platform) === j.platform ? "Gl. " + esc(j.platform) : esc(platform(j.platform))}</span>` : ""}
       <span class="spacer"></span>
       ${j.cancelled ? `<span class="late small">cancelled</span>` :
         `<span class="muted">${clock(j.departs)} → ${clock(j.arrives)}</span>${delayBadge(j.delay, j.realtime)}<b class="time">${countdown(j.departs, now)}</b>`}
